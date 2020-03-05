@@ -84,6 +84,9 @@ local function advance()
     -- Advance the iterator
     lexer_out_s, lexer_out_c = iter(state, lexer_out_s)
 
+    print(lexer_out_s)
+    print(lexer_out_c)
+
     -- If we're not past the end, copy current lexeme into vars
     if lexer_out_s ~= nil then
         lexstr, lexcat = lexer_out_s, lexer_out_c
@@ -209,6 +212,7 @@ function parse_stmt_list()
 
         good, newast = parse_statement()
         if not good then
+            print("parse statement not good")
             return false, nil
         end
 
@@ -257,8 +261,21 @@ function parse_statement()
     elseif matchString("func") then
         
         return
+    -- we have an identifier
+    elseif lexcat == lexit.ID then 
+        advance() -- go to next lexeme
+        if matchString("=") then -- check for assignment statement
+            if lexcat == lexit.DIGIT then 
+                return true, { ASSN_STMT}
+            else
+                return false, nil 
+            end 
+        else 
+            return false, nil 
+        end 
     end
 
+    print("returning defaults")
   return false, nil
 end
 
