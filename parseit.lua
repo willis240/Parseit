@@ -259,7 +259,6 @@ function parse_statement()
     elseif matchString("func") then
         savelex = lexstr
         
-        --identifier
         if matchCat(lexit.ID) then
             if matchString('(') then
                 if matchString(')') then
@@ -270,7 +269,7 @@ function parse_statement()
                     return false, nil
                 end
             
-                ast2 = {FUNC_DEF, funcName, ast1}
+                ast2 = {FUNC_DEF, savelex, ast1}
             
             else
                 return false, nil
@@ -400,49 +399,198 @@ function parse_statement()
 end
 
 function parse_expr()
-  local good, ast
+  local good, ast1, ast2, saveOp
   
-  return good, ast
+  good, ast1 = parse_comp_expr()
+  if not good then
+      return false, nil
+  end
+  
+  while true do
+      saveOp = lexstr
+      if not matchString("and") and not matchString("or") then
+          break
+      end
+      good, ast2 = parse_comp_expr()
+      if not good then
+          return false, nil
+      end
+      ast1 = {{BIN_OP, saveOp}, ast1, ast2}
+  end
+  
+  return true, ast1
 end
 
 function parse_comp_expr()
-  local good, ast
+  local good, ast1, ast2, saveOp
   
-  return good, ast
+  good, ast1 = parse_arith_expr()
+  if not good then
+      return false, nil
+  end
+  
+  while true do
+      saveOp = lexstr
+      if not matchString("==") and
+      not matchString("!=") and
+      not matchString("<") and
+      not matchString(">") and
+      not matchString("<=") and
+      not matchString(">=") then
+          break
+      end
+      
+      good, ast2 = parse_arith_expr()
+      if not good then
+          return false, nil
+      end
+      ast1 = {{BIN_OP, save_Op}, ast1, ast2}
+  end
+  return true, ast1
 end
 
 function parse_arith_expr()
-  local good, ast
+  local good, ast1, ast2, saveOp
   
-  return good, ast
+  good, ast1 = parse_term()
+  if not good then
+      return false, nil
+  end
+  
+  while true do
+      saveOp = lexstr
+      if not matchString("+") and
+      not matchString("-") then
+          break
+      end
+      
+      good, ast2 = parse_term()
+      if not good then
+          return false, nil
+      end
+      ast1 = {{BIN_OP, saveOp}, ast1, ast2}
+  end
+  return true, ast1
 end
 
 function parse_term()
-  local good, ast
+  local good, ast1, ast2, saveOp
   
-  return good, ast
+  good, ast1 = parse_factor()
+  if not good then
+      return false, nil
+  end
+  
+  while true do
+      saveOp = lexstr
+      if not matchString("*") and
+      not matchString("/") and
+      not matchString("%") then
+          break
+      end
+      
+      good, ast2 = parse_factor()
+      if not good then
+          return false, nil
+      end
+      
+      ast1 = {{BIN_OP, saveOp}, ast1, ast2}
+  end
+  return true, ast1
 end
 
 function parse_factor()
-  local good, ast
+  local good, ast1, ast2, savelex
+  savelex = lexstr
   
-  return good, ast
+  if matchString('(') then
+      good, ast1 = parse_expr()
+      if not good then
+          return false, nil
+      end
+      
+      if not matchString(')') then
+          return false, nil
+      end
+      
+      return true, ast1
+      
+  elseif matchString('+') or
+  matchString('-') or
+  matchString("not") then
+      good, ast1 = parse_factor()
+      if not good then
+          return false, nil
+      end
+      return true, {{UN_OP, savelex}, ast1}
+          
+  elseif matchCat(lexit.NUMLIT) then
+      return true, {NUMLIT_VAL, savelex}
+      
+  elseif matchString("true") or
+  matchString("false") then
+      return true, {BOOLLIT_VAL, savelex}
+      
+  elseif matchString("input") then
+      if matchString('(') then
+          if matchString(')') then
+              return true, {INPUT_CALL}
+          end
+      end
+      
+  elseif matchCat(lexit.ID) then
+      if matchString('(') then
+          if matchString(')') then
+              return true, {FUNC_CALL, savelex}
+          end
+          
+      elseif matchString('[') then
+          good, ast1 = parse_expr()
+          if not good then
+              return false, nil
+          end
+          if matchString(']') then
+              return true, {ARRAY_VAR, savelex, ast1}
+          end
+      else
+          return true, {SIMPLE_VAR, savelex}
+      end
+  end
+  return false, nil
 end
 
 function parse_print_arg()
-  local good, ast
+  local good, ast, savelex
   
-  if lexcat == lexit.STRLIT then
-    ast = {STRLIT_OUT, lexstr}
-    advance()
-    return true, ast
+  savelex = lexstr
+  
+  if matchCat(lexit.STRLIT) then
+      return true, {STRLIT_OUT, savelex}
+  elseif matchString("char") then
+      if not matchString('(') then
+          return false, nil
+      end
+  
+      if not good then
+        return false, nil
+      end
+      
+      if not matchString(')') then
+          return false, nil
+      end
+      
+      return true, {CHAR_CALL, ast}
+      
+  else
+      good, ast = parse_expr()
+      
+      if not good then
+          return false, nil
+      end
+  
   end
+  return true, ast
   
-  if not good then
-    return false, nil
-  end
-  
-  return good, ast
 end
 
 -- Module Export
