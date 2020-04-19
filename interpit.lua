@@ -1,15 +1,15 @@
---interpit.lua
---William Fisher
---Framework Provided by Glenn G. Chappell
---contains interpretor for PL "Degu"
---Apr. 15, 2020
+-- interpit.lua  INCOMPLETE
+-- Glenn G. Chappell
+-- 2020-04-10
+--
+-- For CS F331 / CSCE A331 Spring 2020
+-- Interpret AST from parseit.parse
+-- For Assignment 6, Exercise 1
 
-
+require "math"
 -- ***************************************************************
 -- * To run a Degu program, use degu.lua (which uses this file). *
 -- ***************************************************************
-
-require "math"
 
 local interpit = {}  -- Our module
 
@@ -194,30 +194,24 @@ function interpit.interp(ast, state, incall, outcall)
     -- Given a string possibly containing backslash escapes,
     -- returns a string with each replaced by the correct character.
     function handle_backslash_escapes(instr)
-        local previous = instr:sub(1, 1)
-        local outstr = ""
-        if previous~="\\" then
-            outstr = outstr..previous
-        end
-        for i = 2, instr:len() do
-            if previous == "\\" then
-                if instr:sub(i, i) == "n" then
-                    outstr = outstr .. "\n"
-                    previous = instr:sub(i, i)
-                elseif instr:sub(i, i) == "\\" then
-                    outstr = outstr .. "\\"
-                    previous = ""
-                else
-                    outstr = outstr .. instr:sub(i, i)
-                    previous = instr:sub(i, i)
-                end
+      local outstr = ""
+        for i=1, #instr do 
+          local first = instr:sub(i,i)
+          local second = instr:sub(i+1,i+1)
+          
+          if first == '\\' then
+            if second == 'n' then
+              outstr = outstr .. '\n'
+              instr = instr:gsub(second,"",1)
             else
-                if instr:sub(i, i) ~= "\\" then
-                    outstr = outstr .. instr:sub(i, i)
-                end
-                previous = instr:sub(i, i)
+              outstr = outstr .. second
+              instr = instr:gsub(second,"",1)
             end
+          else
+            outstr = outstr .. first
+          end
         end
+        
         return outstr
     end
 
@@ -235,9 +229,9 @@ function interpit.interp(ast, state, incall, outcall)
                     local num = eval_expr(ast[i][2])
                     if num > 127 or num < 0 then
                         outcall(string.char(0))
-                    else
+                     else
                         outcall(string.char(num))
-                    end
+                     end
                 else
                     local value = eval_expr(ast[i])
                     outcall(numToStr(value))
@@ -256,45 +250,45 @@ function interpit.interp(ast, state, incall, outcall)
             interp_stmt_list(funcbody)
         elseif ast[1] == ASSN_STMT then
             if ast[2][1] == SIMPLE_VAR then
-                local name = ast[2][2]
-                local value = eval_expr(ast[3])
-                state.v[name] = value
-            else 
-                local arrayName = ast[2][2]
-                if state.a[arrayName] == nil then
-                    state.a[arrayName] = {}
-                end
-                state.a[arrayName][eval_expr(ast[2][3])] = eval_expr(ast[3])
+              local varname = ast[2][2]
+              local varval = eval_expr(ast[3])
+              state.v[varname] = varval
+            else
+              local arrname = ast[2][2]
+              if state.a[arrname] == nil then
+                state.a[arrname] = {}
+              end
+              state.a[arrname][eval_expr(ast[2][3])] = eval_expr(ast[3])
             end
         elseif ast[1] == RETURN_STMT then
-            local value = eval_expr(ast[2])
-            state.v["return"] = value
+          local val = eval_expr(ast[2])
+            state.v["return"] = val
         elseif ast[1] == IF_STMT then
-            local requirement = 0
+            local condition = 0
             for i = 2, #ast do
-                if ast[i][1] ~= STMT_LIST then
-                    requirement = eval_expr(ast[i])
-                    if requirement ~= 0 then
-                        interp_stmt_list(ast[i + 1])
-                        break
-                    end
+              if ast[i][1] ~= STMT_LIST then
+                condition = eval_expr(ast[i])
+                if condition ~= 0 then
+                  interp_stmt_list(ast[i+1])
+                  break
                 end
+              end
             end
-            if requirement == 0 and ast[#ast - 1][1] == STMT_LIST and ast[#ast][1] == STMT_LIST then
-                interp_stmt_list(ast[#ast])
+            if condition == 0 and ast[#ast-1][1] == STMT_LIST and ast[#ast][1] == STMT_LIST then
+              interp_stmt_list(ast[#ast])
             end
-        elseif ast[1] == WHILE_STMT then
-            local requirementAST = ast[2]
+          elseif ast[1] == WHILE_STMT then
+            local conditionast = ast[2]
             while true do
-                local requirement = eval_expr(requirementAST)
-                if tonumber(requirement) == nil then
-                    requirement = state.v[requirement]
-                end
-                if requirement ~= 0 then
-                    interp_stmt_list(ast[3])
-                else
-                    break
-                end
+              local condition = eval_expr(conditionast)
+              if tonumber(condition) == nil then
+                condition = state.v[condition]
+              end
+              if condition ~= 0 then
+                interp_stmt_list(ast[3])
+              else
+                break
+              end
             end
         end
     end
@@ -306,157 +300,117 @@ function interpit.interp(ast, state, incall, outcall)
     function eval_expr(ast)
         if ast[1] == NUMLIT_VAL then
             return strToNum(ast[2])
-        elseif ast[1] == BOOLLIT_VAL then
-            if ast[2] == "true" then
-                return 1
-            else
-                return 0
-            end
         elseif ast[1] == SIMPLE_VAR then
-            local name = ast[2]
-            local value = state.v[name]
-            if type(value) == 'string' then
-                return strToNum(value)
-            elseif value == nil then
-                return 0
+          if state.v[ast[2]] ~= nil then
+            return state.v[ast[2]]
+          else 
+            return 0
+          end
+        elseif ast[1] == BOOLLIT_VAL then
+          if ast[2] == "true" then
+            return 1
+          else
+            return 0
+          end
+        elseif ast[1] == INPUT_CALL then
+          return strToNum(incall())
+        elseif ast[1] == FUNC_CALL then
+          local funcast = state.f[ast[2]]
+          interp_stmt_list(funcast)
+          
+            local returnval = state.v["return"]
+            if returnval == nil then
+              return 0
             else
-                return value
+              return returnval
             end
         elseif ast[1] == ARRAY_VAR then
-            local arrayName = ast[2]
-            if state.a[arrayName] == nil then
+            local arrname = ast[2]
+            if state.a[arrname] == nil then
+              return 0
+            else
+              local arrval = state.a[arrname][eval_expr(ast[3])]
+              if arrval == nil then
                 return 0
-            else
-                local arrayValue = state.a[arrayName][eval_expr(ast[3])]
-                if arrayValue == nil then
-                    return 0
-                else
-                    return arrayValue
-                end
-            end
-        elseif ast[1] == INPUT_CALL then
-            return strToNum(incall())
-        elseif ast[1] == CHAR_CALL then
-            local char_code = eval_expr(ast[2])
-            if char_code >= 0 and char_code <= 255 then
-                return string.char(char_code)
-            else
-                return string.char(0)
-            end
-        elseif ast[1] == FUNC_CALL then
-            local func_body = state.f[ast[2]]
-            local before_return = state.v["return"]
-            interp_stmt_list(func_body)
-            local after_return = state.v["return"]
-            if before_return == after_return then
-                if before_return ~= nil then
-                    return after_return
-                else
-                    return 0
-                end
-            else
-                return post_ret
+              else
+                return arrval
+              end
             end
         elseif ast[1][1] == BIN_OP then
             local op = ast[1][2]
             local term1 = eval_expr(ast[2])
             local term2 = eval_expr(ast[3])
-            
             if tonumber(term2) == nil then
-                term2 = state.v[term2]
+              term2 = state.v[term2]
             end
             if tonumber(term1) == nil then
                 if state.v[term1] ~= nil then
                     term1 = state.v[term1]
-                else
+               else
                     term1 = 0
-                end
+               end
             end
             if type(term1) == 'string' then
-                term1 = strToNum(term1)
+              term1 = strToNum(term1)
             end
             if type(term2) == 'string' then
-                term2 = strToNum(term2)
+              term2 = strToNum(term2)
             end
             
             if op == '+' then
-                return numToInt(term1 + term2)
+              return numToInt(term1 + term2)
             elseif op == '-' then
-                return numToInt(term1 - term2)
+              return numToInt(term1 - term2)
             elseif op == '*' then
-                return numToInt(term1 * term2)
+              return numToInt(term1 * term2)
             elseif op == '/' then
-                if term2 == 0 then
-                    return 0
-                else
-                    return numToInt(term1 / term2)
-                end
+              if term2 == 0 then
+                return 0
+              else 
+                return numToInt(term1 / term2)
+              end
             elseif op == '%' then
-                if term2 == 0 then
-                    return 0
-                else
-                    return numToInt(term1 % term2)
-                end
+              if term2 == 0 then
+                return 0
+              else 
+                return numToInt(term1 % term2)
+              end
             elseif op == '==' then
-                if(term1 == term2) then
-                    return 1
-                else
-                    return 0
-                end
+              return (boolToInt(term1 == term2))
             elseif op == '!=' then
-                if(term1 ~= term2) then
-                    return 1
-                else
-                    return 0
-                end
+              return (boolToInt(term1 ~= term2))
             elseif op == '<' then
-                if(term1 < term2) then
-                    return 1
-                else
-                    return 0
-                end
+              return (boolToInt(term1 < term2))
             elseif op == '<=' then
-                if(term1 <= term2) then
-                    return 1
-                else
-                    return 0
-                end
+              return (boolToInt(term1 <= term2))
             elseif op == '>' then
-                if(term1 > term2) then
-                    return 1
-                else
-                    return 0
-                end
+              return (boolToInt(term1 > term2))
             elseif op == '>=' then
-                if(term1 >= term2) then
-                    return 1
-                else
-                    return 0
-                end
+              return (boolToInt(term1 >= term2))
             elseif op == 'and' then
-                if((term1 == 1 and term2 == 1) or ((term1 == term2) and (term1 ~= 0))) then
-                    return 1
-                else
-                    return 0
-                end
+              if term1 == 0 then
+                return 0
+              else 
+                return boolToInt(term1 == term2)
+              end
             elseif op == 'or' then
-                if(term1 > 0 or term2 > 0) then
-                    return 1
-                else
-                    return 0
-                end
+              if(term1 == 0 and term2 == 0) then
+                return 0
+              else
+                return 1
+              end
             end
         elseif ast[1][1] == UN_OP then
             if ast[1][2] == '+' then
-                return eval_expr(ast[2])
+              return eval_expr(ast[2])
             elseif ast[1][2] == '-' then
-                return (-1 * eval_expr(ast[2]))
+              return -eval_expr(ast[2])
             elseif ast[1][2] == 'not' then
-                if eval_expr(ast[2]) == 0 then
-                    return 1
-                else
-                    return 0
-                end
+              if eval_expr(ast[2]) == 0 then
+                return 1
+              else
+                return 0
+              end
             end
         end
     end
@@ -472,3 +426,4 @@ end
 
 
 return interpit
+
