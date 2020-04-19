@@ -232,7 +232,12 @@ function interpit.interp(ast, state, incall, outcall)
                     outcall(handle_backslash_escapes(
                              str:sub(2,str:len()-1)))
                 elseif ast[i][1] == CHAR_CALL then
-                    outcall(eval_expr(ast[i]))
+                    local num = eval_expr(ast[i][2])
+                    if num > 127 or num < 0 then
+                        outcall(string.char(0))
+                    else
+                        outcall(string.char(num))
+                    end
                 else
                     local value = eval_expr(ast[i])
                     outcall(numToStr(value))
@@ -250,32 +255,47 @@ function interpit.interp(ast, state, incall, outcall)
             end
             interp_stmt_list(funcbody)
         elseif ast[1] == ASSN_STMT then
-            local name
-            local value
             if ast[2][1] == SIMPLE_VAR then
-                name = ast[2][2]
-                if ast[3][1] == NUMLIT_VAL then
-                    value = numToInt(strToNum(ast[3][2]))
-                elseif ast[3][1] == BOOLLIT_VAL then
-                    value = ast[3][2]
-                    if value == 'true' then
-                        value = 1
-                    else
-                        value = 0
-                    end
-                else
-                    value = numToInt(eval_expr(ast[3]))
-                end
+                local name = ast[2][2]
+                local value = eval_expr(ast[3])
                 state.v[name] = value
-            elseif ast[2][1] == ARRAY_VAR then
-                local varName = ast[2][2]
-                if state.a[ast[2][2]] == nil then
-                    state.a[ast[2][2]] = {}
+            else 
+                local arrayName = ast[2][2]
+                if state.a[arrayName] == nil then
+                    state.a[arrayName] = {}
                 end
-                state.a[ast[2][2]][eval_expr(ast[2][3])] = eval_expr(ast[3])
+                state.a[arrayName][eval_expr(ast[2][3])] = eval_expr(ast[3])
             end
-        else
-            print("THIS KIND OF STATEMENT NOT HANDLED YET!!!")
+        elseif ast[1] == RETURN_STMT then
+            local value = eval_expr(ast[2])
+            state.v["return"] = value
+        elseif ast[1] == IF_STMT then
+            local requirement = 0
+            for i = 2, #ast do
+                if ast[i][1] ~= STMT_LIST then
+                    requirement = eval_expr(ast[i])
+                    if requirement ~= 0 then
+                        interp_stmt_list(ast[i + 1])
+                        break
+                    end
+                end
+            end
+            if requirement == 0 and ast[#ast - 1][1] == STMT_LIST and ast[#ast][1] == STMT_LIST then
+                interp_stmt_list(ast[#ast])
+            end
+        elseif ast[1] == WHILE_STMT then
+            local requirementAST = ast[2]
+            while true do
+                local requirement = eval_expr(requirementAST)
+                if tonumber(requirement) == nil then
+                    requirement = state.v[requirement]
+                end
+                if requirement ~= 0 then
+                    interp_stmt_list(ast[3])
+                else
+                    break
+                end
+            end
         end
     end
 
@@ -287,7 +307,11 @@ function interpit.interp(ast, state, incall, outcall)
         if ast[1] == NUMLIT_VAL then
             return strToNum(ast[2])
         elseif ast[1] == BOOLLIT_VAL then
-            return ast[2]
+            if ast[2] == "true" then
+                return 1
+            else
+                return 0
+            end
         elseif ast[1] == SIMPLE_VAR then
             local name = ast[2]
             local value = state.v[name]
@@ -337,6 +361,24 @@ function interpit.interp(ast, state, incall, outcall)
             local op = ast[1][2]
             local term1 = eval_expr(ast[2])
             local term2 = eval_expr(ast[3])
+            
+            if tonumber(term2) == nil then
+                term2 = state.v[term2]
+            end
+            if tonumber(term1) == nil then
+                if state.v[term1] ~= nil then
+                    term1 = state.v[term1]
+                else
+                    term1 = 0
+                end
+            end
+            if type(term1) == 'string' then
+                term1 = strToNum(term1)
+            end
+            if type(term2) == 'string' then
+                term2 = strToNum(term2)
+            end
+            
             if op == '+' then
                 return numToInt(term1 + term2)
             elseif op == '-' then
@@ -410,16 +452,12 @@ function interpit.interp(ast, state, incall, outcall)
             elseif ast[1][2] == '-' then
                 return (-1 * eval_expr(ast[2]))
             elseif ast[1][2] == 'not' then
-                if eval_expr(ast[2]) > 0 then
-                    return 0
-                else
+                if eval_expr(ast[2]) == 0 then
                     return 1
+                else
+                    return 0
                 end
             end
-        else
-            print("end of eval_expr")
-            print(astToStr(ast))
-            return 42  -- DUMMY!!!
         end
     end
 
